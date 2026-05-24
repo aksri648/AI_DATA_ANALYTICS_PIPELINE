@@ -87,5 +87,15 @@ class DashboardBuilder:
             charts["correlation"] = chart_engine.create_heatmap(df, title="Correlation Heatmap")
         return {"charts": charts, "kpis": kpis, "type": "auto"}
 
+    @staticmethod
+    def to_html_dict(dashboard: dict[str, Any]) -> dict[str, str]:
+        """Convert plotly figure objects in a dashboard to HTML strings for persistence."""
+        charts = dashboard.get("charts", {})
+        charts_html = {}
+        for name, fig in charts.items():
+            if fig is not None:
+                charts_html[name] = chart_engine.figure_to_html(fig)
+        return charts_html
+
 
 dashboard_builder = DashboardBuilder()
