@@ -64,7 +64,6 @@ def render_analytics():
                                 cols[i].metric(kpi.get("title", ""), kpi.get("value", ""))
                         insight_text = "Charts generated"
                     elif result.get("intent") == "insights":
-                        st.markdown("**AI Insights:**")
                         st.markdown(result.get("insights", ""))
                         insight_text = result.get("insights", "")
                     elif result.get("intent") == "report":

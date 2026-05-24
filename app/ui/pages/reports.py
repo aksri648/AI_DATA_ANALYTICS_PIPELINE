@@ -11,7 +11,7 @@ from app.llm.ollama_service import ollama_service
 
 def render_reports():
     st.markdown("## Reports")
-    st.markdown("Generate and download analytics reports.")
+    st.markdown("Generate comprehensive analytics reports with rich visualizations.")
 
     tables = warehouse.list_datasets()
     if not tables:
@@ -23,16 +23,15 @@ def render_reports():
         selected = st.selectbox("Dataset", tables)
     with col2:
         report_title = st.text_input("Report Title", value="Analytics Report")
-    report_format = st.selectbox("Format", ["markdown", "html"])
+    report_format = st.selectbox("Format", ["html", "markdown"])
 
     if st.button("Generate Report", type="primary", use_container_width=True):
-        with st.spinner("Generating comprehensive report..."):
+        with st.spinner("Generating comprehensive report with visualizations..."):
             try:
                 df = warehouse.get_dataset(selected)
                 profile = DataProfiling.full_profile(df)
                 validation = DataValidation.validate_dataset(df)
                 kpis = chart_engine.generate_kpi_cards(df)
-                dashboard = dashboard_builder.auto_dashboard(df)
                 history = etl_pipeline.get_pipeline_history()
 
                 prompt = f"""Generate an executive summary for a dataset with:
@@ -49,14 +48,21 @@ Validation: {validation}"""
                 insights_text = ollama_service.invoke(insights_prompt)
                 insights = [l for l in insights_text.split("\n") if l.strip() and not l.startswith("#")][:5]
 
-                charts_html = []
-                for fig in dashboard.get("charts", {}).values():
-                    if fig:
-                        charts_html.append(fig.to_html(include_plotlyjs="cdn", full_html=False))
+                recommendations_prompt = f"""Based on this data profile, provide 5 actionable recommendations:
+Profile: {profile}
+Insights: {insights}"""
+                recs_text = ollama_service.invoke(recommendations_prompt)
+                recommendations = [l for l in recs_text.split("\n") if l.strip() and not l.startswith("#")][:5]
+
+                report_figures = chart_engine.generate_report_charts(df)
+                charts_html = {}
+                for name, fig in report_figures.items():
+                    if fig is not None:
+                        charts_html[name] = chart_engine.figure_to_html(fig)
 
                 if report_format == "html":
                     report = report_generator.generate_html_report(
-                        report_title, summary, kpis, insights, charts_html, history
+                        report_title, summary, kpis, insights, charts_html, history, recommendations
                     )
                     st.download_button(
                         "Download HTML Report",
@@ -65,10 +71,11 @@ Validation: {validation}"""
                         mime="text/html",
                         use_container_width=True,
                     )
-                    st.components.v1.html(report, height=600, scrolling=True)
+                    st.components.v1.html(report, height=900, scrolling=True)
                 else:
+                    all_charts_flat = list(charts_html.values())
                     report = report_generator.generate_markdown_report(
-                        report_title, summary, kpis, insights, charts_html, history
+                        report_title, summary, kpis, insights, all_charts_flat, history, recommendations
                     )
                     st.download_button(
                         "Download Markdown Report",
@@ -79,7 +86,7 @@ Validation: {validation}"""
                     )
                     st.markdown(report)
 
-                st.success("Report generated successfully!")
+                st.success(f"Report generated successfully with {len(charts_html)} visualizations!")
 
             except Exception as e:
                 st.error(f"Report generation failed: {e}")

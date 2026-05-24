@@ -42,6 +42,11 @@ class AnalyticsService:
         sql = match.group(0).strip()
         return sql if sql.lower().startswith("select") else None
 
+    def clean_chat_markdown(self, text: str) -> str:
+        text = re.sub(r"```sql\s*.*?```", "", text, flags=re.IGNORECASE | re.DOTALL)
+        text = re.sub(r"```\s*.*?```", "", text, flags=re.DOTALL)
+        return text.strip()
+
     def process_question(self, question: str, table_name: str | None = None) -> dict[str, Any]:
         intent = self.detect_intent(question)
         logger.info(f"Detected intent: {intent} for question: {question[:100]}")
@@ -89,20 +94,24 @@ Generate a SQL query and explain the results."""
 
         if intent == "insights":
             validation = DataValidation.validate_dataset(df)
-            prompt = f"""Analyze this dataset and provide 5 key business insights:
+            prompt = f"""Analyze this dataset and answer the user's request in simple markdown.
 
 Dataset profile: {profile}
 Data validation: {validation}
 User question: {question}
 
-Provide actionable, specific insights about trends, anomalies, patterns, and opportunities for improvement."""
-            insights = ollama_service.invoke(prompt)
+Rules:
+- Do not write SQL.
+- Do not include code blocks.
+- Do not describe how to query the data.
+- Give the final answer directly as short markdown bullets and a concise conclusion.
+- Use specific numbers from the profile when available."""
+            insights = self.clean_chat_markdown(ollama_service.invoke(prompt))
             return {"intent": intent, "insights": insights, "table_name": table_name, "profile": profile}
 
         if intent == "report":
             validation = DataValidation.validate_dataset(df)
             kpis = chart_engine.generate_kpi_cards(df)
-            dashboard = dashboard_builder.auto_dashboard(df)
 
             prompt = f"""Generate an executive summary for this dataset:
 
@@ -113,23 +122,34 @@ User context: {question}
 Write a concise 2-3 paragraph executive summary."""
             summary = ollama_service.invoke(prompt)
 
-            charts_html = []
-            for fig in dashboard.get("charts", {}).values():
-                if fig:
-                    charts_html.append(fig.to_html(include_plotlyjs="cdn", full_html=False))
+            recs_prompt = f"""Based on this dataset, provide 5 actionable recommendations:
+Profile: {profile}
+User context: {question}"""
+            recs_text = ollama_service.invoke(recs_prompt)
+            recommendations = [l for l in recs_text.split("\n") if l.strip() and not l.startswith("#")][:5]
+
+            report_figures = chart_engine.generate_report_charts(df)
+            charts_html = {}
+            for name, fig in report_figures.items():
+                if fig is not None:
+                    charts_html[name] = chart_engine.figure_to_html(fig)
 
             report = report_generator.generate_html_report(
-                "Analytics Report", summary, kpis, [summary], charts_html
+                "Analytics Report", summary, kpis, [summary], charts_html, recommendations=recommendations
             )
             return {"intent": intent, "report": report, "table_name": table_name}
 
-        prompt = f"""Analyze this dataset and answer the user's question.
+        prompt = f"""Analyze this dataset and answer the user's question in simple markdown.
 
 Dataset profile: {profile}
 Question: {question}
 
-Provide a comprehensive analysis with specific numbers and findings."""
-        analysis = ollama_service.invoke(prompt)
+Rules:
+- Do not write SQL unless the user explicitly asks for SQL.
+- Do not include code blocks.
+- Give the final answer directly with clear markdown bullets and a concise conclusion.
+- Use specific numbers from the profile when available."""
+        analysis = self.clean_chat_markdown(ollama_service.invoke(prompt))
         fig = chart_engine.auto_chart(df, question)
         return {
             "intent": intent,

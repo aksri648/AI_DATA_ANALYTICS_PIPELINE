@@ -64,77 +64,334 @@ class ReportGenerator:
         return "\n".join(parts)
 
     @staticmethod
+    def _build_kpi_section(kpis: list[dict[str, Any]]) -> str:
+        cards = []
+        for kpi in kpis:
+            trend_color = "#00CC96" if kpi.get("trend") == "up" else "#EF553B" if kpi.get("trend") == "down" else "#FFA15A"
+            trend_icon = "▲" if kpi.get("trend") == "up" else "▼" if kpi.get("trend") == "down" else "►"
+            cards.append(f"""
+            <div class="kpi-card">
+                <span class="kpi-label">{kpi.get('title', '')}</span>
+                <span class="kpi-value">{kpi.get('value', '')}</span>
+                <span class="kpi-meta">Avg: {kpi.get('mean', '')} <span style="color:{trend_color};">{trend_icon}</span></span>
+            </div>""")
+        return f'<div class="kpi-row">{"".join(cards)}</div>'
+
+    @staticmethod
+    def _build_insights_section(insights: list[str]) -> str:
+        items = "".join(f"<li>{insight}</li>" for insight in insights)
+        return f'<div class="section"><h2>AI Insights</h2><ol class="insight-list">{items}</ol></div>'
+
+    @staticmethod
+    def _build_recommendations_section(recommendations: list[str]) -> str:
+        items = "".join(f'<li><span class="rec-icon">&#10148;</span> {rec}</li>' for rec in recommendations)
+        return f'<div class="section"><h2>Recommendations</h2><ol class="rec-list">{items}</ol></div>'
+
+    @staticmethod
+    def _build_etl_section(etl_logs: list[dict[str, Any]]) -> str:
+        rows = "".join(
+            f"<tr><td>{log.get('step', '')}</td><td><span class='status-badge {log.get('status', '').lower()}'>{log.get('status', '')}</span></td><td>{log.get('timestamp', '')}</td></tr>"
+            for log in etl_logs
+        )
+        return f"""<div class="section"><h2>ETL Pipeline</h2>
+        <table><thead><tr><th>Step</th><th>Status</th><th>Timestamp</th></tr></thead><tbody>{rows}</tbody></table></div>"""
+
+    @staticmethod
+    def _build_chart_grid(charts: dict[str, str] | list[str], section_title: str = "Visualizations") -> str:
+        if not charts:
+            return ""
+        if isinstance(charts, dict):
+            items = []
+            for name, html in charts.items():
+                if html:
+                    label = name.replace("_", " ").replace("cat ", "").replace("hist ", "").replace("box ", "").title()
+                    items.append(f'<div class="chart-card"><h3>{label}</h3><div class="chart-body">{html}</div></div>')
+            return f'<div class="section"><h2>{section_title}</h2><div class="chart-grid">{"".join(items)}</div></div>'
+        items = [f'<div class="chart-card"><div class="chart-body">{html}</div></div>' for html in charts if html]
+        return f'<div class="section"><h2>{section_title}</h2><div class="chart-grid">{"".join(items)}</div></div>'
+
+    @staticmethod
+    def _categorize_charts(charts: dict[str, str]) -> dict[str, dict[str, str]]:
+        sections: dict[str, dict[str, str]] = {
+            "Data Quality": {},
+            "Distributions & Box Plots": {},
+            "Correlations": {},
+            "Categorical Analysis": {},
+            "Time Series": {},
+            "Relationships & Advanced": {},
+        }
+        for name, html in charts.items():
+            if not html:
+                continue
+            if name.startswith("quality"):
+                sections["Data Quality"][name] = html
+            elif name.startswith("hist") or name.startswith("box") or name.startswith("violin"):
+                sections["Distributions & Box Plots"][name] = html
+            elif "correlation" in name or "heatmap" in name:
+                sections["Correlations"][name] = html
+            elif name.startswith("cat") or name.startswith("donut") or name == "missing_values":
+                sections["Categorical Analysis"][name] = html
+            elif "timeseries" in name:
+                sections["Time Series"][name] = html
+            else:
+                sections["Relationships & Advanced"][name] = html
+        return {k: v for k, v in sections.items() if v}
+
+    @staticmethod
     def generate_html_report(
         title: str,
         summary: str,
         kpis: list[dict[str, Any]] | None = None,
         insights: list[str] | None = None,
-        charts: list[str] | None = None,
+        charts: dict[str, str] | list[str] | None = None,
         etl_logs: list[dict[str, Any]] | None = None,
         recommendations: list[str] | None = None,
     ) -> str:
-        kpi_html = ""
-        if kpis:
-            cards = []
-            for kpi in kpis:
-                trend_color = "#4CAF50" if kpi.get("trend") == "up" else "#f44336" if kpi.get("trend") == "down" else "#FFC107"
-                cards.append(f"""
-                <div style="background:#1e1e1e;border-radius:10px;padding:20px;margin:10px;flex:1;min-width:200px;box-shadow:0 2px 8px rgba(0,0,0,0.3);">
-                    <h3 style="color:#888;margin:0;font-size:14px;">{kpi.get('title', '')}</h3>
-                    <p style="font-size:28px;font-weight:bold;margin:10px 0;color:#fff;">{kpi.get('value', '')}</p>
-                    <p style="color:#666;margin:0;">Avg: {kpi.get('mean', '')} <span style="color:{trend_color};">{'↑' if kpi.get('trend') == 'up' else '↓' if kpi.get('trend') == 'down' else '→'}</span></p>
-                </div>""")
-            kpi_html = f'<div style="display:flex;flex-wrap:wrap;margin:20px 0;">{"".join(cards)}</div>'
-
-        insights_html = ""
-        if insights:
-            items = "".join(f"<li style='margin:8px 0;color:#ccc;'>{insight}</li>" for insight in insights)
-            insights_html = f"<h2 style='color:#fff;'>AI Insights</h2><ul>{items}</ul>"
-
-        recs_html = ""
-        if recommendations:
-            items = "".join(f"<li style='margin:8px 0;color:#ccc;'>{rec}</li>" for rec in recommendations)
-            recs_html = f"<h2 style='color:#fff;'>Recommendations</h2><ul>{items}</ul>"
-
-        etl_html = ""
-        if etl_logs:
-            rows = "".join(
-                f"<tr><td style='padding:8px;border:1px solid #333;'>{log.get('step', '')}</td>"
-                f"<td style='padding:8px;border:1px solid #333;'>{log.get('status', '')}</td>"
-                f"<td style='padding:8px;border:1px solid #333;'>{log.get('timestamp', '')}</td></tr>"
-                for log in etl_logs
-            )
-            etl_html = f"<h2 style='color:#fff;'>ETL Pipeline</h2><table style='width:100%;border-collapse:collapse;color:#ccc;'><tr><th style='padding:8px;border:1px solid #333;text-align:left;'>Step</th><th style='padding:8px;border:1px solid #333;text-align:left;'>Status</th><th style='padding:8px;border:1px solid #333;text-align:left;'>Timestamp</th></tr>{rows}</table>"
+        kpi_html = ReportGenerator._build_kpi_section(kpis) if kpis else ""
+        insights_html = ReportGenerator._build_insights_section(insights) if insights else ""
+        recs_html = ReportGenerator._build_recommendations_section(recommendations) if recommendations else ""
+        etl_html = ReportGenerator._build_etl_section(etl_logs) if etl_logs else ""
 
         charts_html = ""
         if charts:
-            charts_html = f"<h2 style='color:#fff;'>Visualizations</h2>{''.join(charts)}"
+            if isinstance(charts, dict):
+                sections = ReportGenerator._categorize_charts(charts)
+                for sec_name, sec_charts in sections.items():
+                    charts_html += ReportGenerator._build_chart_grid(sec_charts, sec_name)
+            else:
+                charts_html = ReportGenerator._build_chart_grid(charts, "Visualizations")
 
         return f"""<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>{title}</title>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{title}</title>
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <style>
-* {{ margin:0; padding:0; box-sizing:border-box; }}
-body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#121212; color:#e0e0e0; padding:40px; }}
-h1 {{ color:#fff; font-size:32px; margin-bottom:10px; }}
-h2 {{ color:#fff; font-size:22px; margin:30px 0 15px; }}
-.summary {{ background:#1e1e1e; border-radius:10px; padding:25px; margin:20px 0; line-height:1.8; }}
-.footer {{ text-align:center; margin-top:40px; padding:20px; color:#666; border-top:1px solid #333; }}
+:root {{
+    --bg: #0f1117;
+    --surface: #1a1d29;
+    --surface2: #232738;
+    --border: #2d3148;
+    --text: #e0e4f0;
+    --text-dim: #8b8fa8;
+    --accent: #636EFA;
+    --accent2: #00CC96;
+    --accent3: #EF553B;
+    --radius: 12px;
+}}
+* {{ margin: 0; padding: 0; box-sizing: border-box; }}
+body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0;
+}}
+.report-container {{
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 32px;
+}}
+.report-header {{
+    text-align: center;
+    padding: 48px 0 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+}}
+.report-header h1 {{
+    font-size: 36px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.5px;
+}}
+.report-header .subtitle {{
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-top: 8px;
+}}
+.section {{
+    margin-bottom: 40px;
+}}
+.section h2 {{
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent);
+    display: inline-block;
+}}
+.summary-box {{
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    line-height: 1.9;
+    border: 1px solid var(--border);
+    margin-bottom: 32px;
+    font-size: 15px;
+}}
+.kpi-row {{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+}}
+.kpi-card {{
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: transform 0.15s, box-shadow 0.15s;
+}}
+.kpi-card:hover {{
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}}
+.kpi-label {{
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    font-weight: 600;
+}}
+.kpi-value {{
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+}}
+.kpi-meta {{
+    font-size: 13px;
+    color: var(--text-dim);
+}}
+.chart-grid {{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 20px;
+}}
+.chart-card {{
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+}}
+.chart-card:hover {{
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}}
+.chart-card h3 {{
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dim);
+    padding: 14px 20px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}}
+.chart-body {{
+    padding: 8px 12px 12px;
+}}
+.insight-list, .rec-list {{
+    list-style: none;
+    padding: 0;
+}}
+.insight-list li {{
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 14px 20px;
+    margin-bottom: 10px;
+    border-left: 3px solid var(--accent);
+    font-size: 14px;
+}}
+.rec-list li {{
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 14px 20px;
+    margin-bottom: 10px;
+    border-left: 3px solid var(--accent2);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}}
+.rec-icon {{
+    color: var(--accent2);
+    font-size: 16px;
+    flex-shrink: 0;
+}}
+table {{
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+}}
+thead th {{
+    background: var(--surface2);
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    font-weight: 600;
+}}
+tbody td {{
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+}}
+tbody tr:hover {{
+    background: var(--surface2);
+}}
+.status-badge {{
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}}
+.status-badge.success {{ background: rgba(0,204,150,0.15); color: #00CC96; }}
+.status-badge.failed {{ background: rgba(239,85,59,0.15); color: #EF553B; }}
+.status-badge.warning {{ background: rgba(255,161,90,0.15); color: #FFA15A; }}
+.footer {{
+    text-align: center;
+    margin-top: 48px;
+    padding: 24px 0;
+    color: var(--text-dim);
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+}}
+@media (max-width: 768px) {{
+    .report-container {{ padding: 20px 16px; }}
+    .chart-grid {{ grid-template-columns: 1fr; }}
+    .kpi-row {{ grid-template-columns: repeat(2, 1fr); }}
+}}
 </style>
 </head>
 <body>
-<h1>{title}</h1>
-<p style="color:#888;">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-<hr style="border-color:#333;margin:20px 0;">
-<h2>Executive Summary</h2>
-<div class="summary">{summary}</div>
-{kpi_html}
-{insights_html}
-{recs_html}
-{etl_html}
-{charts_html}
-<div class="footer">Report generated by AI Analytics &amp; ETL Copilot</div>
+<div class="report-container">
+    <div class="report-header">
+        <h1>{title}</h1>
+        <div class="subtitle">Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}</div>
+    </div>
+
+    <div class="section">
+        <h2>Executive Summary</h2>
+        <div class="summary-box">{summary}</div>
+    </div>
+
+    {kpi_html}
+    {insights_html}
+    {recs_html}
+    {etl_html}
+    {charts_html}
+
+    <div class="footer">Report generated by AI Analytics &amp; ETL Copilot</div>
+</div>
 </body>
 </html>"""
 
