@@ -194,6 +194,20 @@ Chart count scales with the dataset's column types — the more numeric/categori
 - `AnalyticsService.process_question()` report intent now uses `generate_report_charts()` and generates recommendations via LLM.
 - Reports page (`app/ui/pages/reports.py`) generates recommendations, passes chart dict to the report, and displays chart count on success.
 
+### Dashboard Persistence (`app/db/dashboard_store.py`)
+- New `DashboardStore` class backed by DuckDB (`_dashboards` table).
+- Stores: dashboard name, dataset name, dashboard type, KPI JSON, chart HTML JSON, config JSON, created/updated timestamps.
+- CRUD operations:
+  - `save()` — upserts by name (creates new or updates existing).
+  - `get_by_id()` / `get_by_name()` — loads full dashboard including cached chart HTML.
+  - `list_all()` — returns metadata (id, name, dataset, type, timestamps) sorted by last updated.
+  - `delete()` — removes by id.
+- `DashboardBuilder.to_html_dict()` converts plotly figure objects to HTML strings for persistence.
+- Dashboard UI (`app/ui/pages/dashboard.py`) now has two tabs:
+  - **Build Dashboard** — generate a dashboard, then save it with a name via a form.
+  - **Saved Dashboards** — list all saved dashboards, load one (renders instantly from cached HTML), or delete.
+- Loaded dashboards render without re-computing data or calling the LLM.
+
 ## Recommended Next Engineering Steps
 1. Add integration tests for ETL pipeline manager and MCP tool calls.
 2. Add authentication/role model if multi-user local network usage is expected.
