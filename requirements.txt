@@ -1,0 +1,41 @@
+# AI Analytics & ETL Copilot
+# Core
+crewai>=0.108.0
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-ollama>=0.3.0
+ollama>=0.4.0
+
+# Data Processing
+pandas>=2.2.0
+numpy>=2.0.0
+pyarrow>=19.0.0
+openpyxl>=3.1.0
+xlrd>=2.0.0
+
+# Databases
+duckdb>=1.2.0
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+pymysql>=1.1.0
+
+# Visualization
+plotly>=5.24.0
+altair>=5.4.0
+
+# Frontend
+streamlit>=1.40.0
+
+# MCP
+mcp>=0.1.0
+
+# API
+fastapi>=0.115.0
+uvicorn>=0.34.0
+requests>=2.32.0
+
+# Utilities
+python-dotenv>=1.1.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0

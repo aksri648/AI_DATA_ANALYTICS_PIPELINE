@@ -1,0 +1,31 @@
+# Environment
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Databases
+*.db
+*.duckdb
+*.sqlite
+*.sqlite3
+
+# Streamlit runtime (keep config)
+.streamlit/secrets.toml
+
+# Uploads
+app/uploads/*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/tmp/

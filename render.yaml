@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: ai-analytics-copilot
+    runtime: python
+    repo: https://github.com/your-repo/ai-analytics-copilot
+    branch: main
+    buildCommand: uv sync
+    startCommand: streamlit run app/ui/app.py --server.port=$PORT --server.address=0.0.0.0
+    healthCheckPath: /healthz
+    envVars:
+      - key: OLLAMA_BASE_URL
+        value: https://your-ngrok-url.ngrok.io
+        comment: "Set this to your ngrok-forwarded Colab Ollama URL"
+      - key: OLLAMA_MODEL
+        value: qwen2.5:14b
+      - key: DUCKDB_PATH
+        value: /var/data/analytics.duckdb
+      - key: LOG_LEVEL
+        value: INFO
+      - key: STREAMLIT_THEME
+        value: dark
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
