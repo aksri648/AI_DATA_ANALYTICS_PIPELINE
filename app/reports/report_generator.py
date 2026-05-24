@@ -114,25 +114,28 @@ class ReportGenerator:
     def _categorize_charts(charts: dict[str, str]) -> dict[str, dict[str, str]]:
         sections: dict[str, dict[str, str]] = {
             "Data Quality": {},
+            "Bar Charts": {},
+            "Line Charts & Trends": {},
+            "Heatmaps": {},
             "Distributions & Box Plots": {},
-            "Correlations": {},
             "Categorical Analysis": {},
-            "Time Series": {},
             "Relationships & Advanced": {},
         }
         for name, html in charts.items():
             if not html:
                 continue
-            if name.startswith("quality"):
+            if name.startswith("quality") or "missing" in name:
                 sections["Data Quality"][name] = html
-            elif name.startswith("hist") or name.startswith("box") or name.startswith("violin"):
+            elif any(name.startswith(p) for p in ["bar_", "hbar_", "grouped", "stacked", "paired", "bar_sum", "bar_mean"]):
+                sections["Bar Charts"][name] = html
+            elif any(name.startswith(p) for p in ["line_", "rolling_", "cumulative_", "multiline_"]):
+                sections["Line Charts & Trends"][name] = html
+            elif "heatmap" in name:
+                sections["Heatmaps"][name] = html
+            elif any(name.startswith(p) for p in ["hist_", "box_", "violin_", "percentile_", "overlaid"]):
                 sections["Distributions & Box Plots"][name] = html
-            elif "correlation" in name or "heatmap" in name:
-                sections["Correlations"][name] = html
-            elif name.startswith("cat") or name.startswith("donut") or name == "missing_values":
+            elif any(name.startswith(p) for p in ["donut_", "sunburst"]):
                 sections["Categorical Analysis"][name] = html
-            elif "timeseries" in name:
-                sections["Time Series"][name] = html
             else:
                 sections["Relationships & Advanced"][name] = html
         return {k: v for k, v in sections.items() if v}
