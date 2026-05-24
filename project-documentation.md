@@ -135,6 +135,65 @@ Routing is controlled via `render_sidebar()` and page mapping in `app/ui/app.py`
 - Modular architecture exists for production extension.
 - Legacy root-level files were removed; the active implementation is fully under the `app/` package plus root `main.py` launcher.
 
+## Recent Changes
+
+### SQL Identifier Quoting & Input Sanitization
+- Added `quote_identifier()` in `app/db/duckdb_manager.py` for safe SQL identifier handling across all query paths (DROP, CREATE, DESCRIBE, SELECT).
+- Enhanced `sanitize_table_name()` in `app/utils/helpers.py` to strip redundant underscores, handle leading digits, and fallback to `"dataset"` for empty names.
+- Applied sanitization throughout ingestion, warehouse, and pipeline manager to prevent SQL injection and naming errors.
+
+### Chart Visualization Engine (`app/charts/chart_engine.py`)
+Added 10 new chart creation methods:
+| Method | Description |
+|--------|-------------|
+| `create_violin_plot` | Violin distribution with embedded box plot |
+| `create_sunburst_chart` | Hierarchical sunburst for nested categories |
+| `create_treemap` | Hierarchical treemap for proportional data |
+| `create_funnel_chart` | Funnel chart for conversion/pipeline stages |
+| `create_waterfall_chart` | Waterfall for incremental changes |
+| `create_bubble_chart` | Scatter with size dimension |
+| `create_gauge_chart` | Gauge/KPI indicator with colored zones |
+| `create_radar_chart` | Radar/spider chart for multi-axis comparison |
+| `create_donut_chart` | Donut variant of pie chart |
+| `create_stacked_bar` / `create_grouped_bar` | Stacked and grouped bar variants |
+| `create_horizontal_bar` | Horizontal bar for ranked data |
+| `create_multi_line` | Multiple series on a single line chart |
+| `create_categorical_heatmap` | Pivot-table heatmap from two categorical + one numeric column |
+| `create_missing_heatmap` | Visual missing-data pattern across rows/columns |
+| `create_paired_bar` | Side-by-side bar comparison (e.g., total vs average) |
+| `create_percentile_bar` | Percentile distribution bar chart |
+| `create_cumulative_line` | Cumulative sum area line |
+| `create_rolling_average_line` | Rolling average trend with raw scatter overlay |
+| `create_multi_histogram` | Overlapping histograms for comparing distributions |
+
+### Auto-Generated Report Charts (`generate_report_charts()`)
+Given any DataFrame, `generate_report_charts()` now auto-produces **up to 51 charts** organized into sections:
+
+| Section | Charts Generated |
+|---------|-----------------|
+| **Data Quality** | Completeness gauge, uniqueness gauge, missing-values bar (vertical + horizontal), missing-data pattern heatmap |
+| **Bar Charts** | Value-count bars per categorical (vertical + horizontal), sum/mean aggregation bars per numeric, grouped bar, stacked bar, paired bar (sum vs mean) |
+| **Line Charts & Trends** | Time-series line per date×numeric pair, rolling-average trend, cumulative total, multi-line (all metrics), line by category |
+| **Heatmaps** | Correlation heatmap, categorical cross-tab (numeric values), categorical cross-tab (record counts) |
+| **Distributions & Box Plots** | Histogram per numeric column, overlaid multi-histogram, percentile distribution bar, box plot per numeric, violin plot grouped by category |
+| **Categorical Analysis** | Donut composition charts, sunburst hierarchy |
+| **Relationships & Advanced** | Scatter (multiple pairs), bubble chart, treemap |
+
+Chart count scales with the dataset's column types — the more numeric/categorical/date columns, the more charts are generated.
+
+### HTML Report Redesign (`app/reports/report_generator.py`)
+- Redesigned with a modern dark theme using CSS custom properties (`--bg`, `--surface`, `--accent`, etc.).
+- Responsive chart grid layout (`grid-template-columns: repeat(auto-fit, minmax(500px, 1fr))`).
+- Charts are automatically categorized into titled sections by the `_categorize_charts()` method.
+- Styled KPI cards with hover effects, insight/recommendation lists with colored left borders.
+- ETL pipeline table with status badges (`success`, `failed`, `warning`).
+- Mobile-responsive breakpoints at 768px.
+- Supports both `dict[str, str]` (sectioned) and `list[str]` (flat) chart inputs.
+
+### Analytics Service & Reports Page Updates
+- `AnalyticsService.process_question()` report intent now uses `generate_report_charts()` and generates recommendations via LLM.
+- Reports page (`app/ui/pages/reports.py`) generates recommendations, passes chart dict to the report, and displays chart count on success.
+
 ## Recommended Next Engineering Steps
 1. Add integration tests for ETL pipeline manager and MCP tool calls.
 2. Add authentication/role model if multi-user local network usage is expected.
