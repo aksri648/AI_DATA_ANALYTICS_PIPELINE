@@ -43,6 +43,7 @@ SUPPORTED_FILE_TYPES = {
     ".xls": "application/vnd.ms-excel",
     ".json": "application/json",
     ".parquet": "application/octet-stream",
+    ".pdf": "application/pdf",
 }
 
 DEFAULT_CHART_THEME = "plotly_dark"

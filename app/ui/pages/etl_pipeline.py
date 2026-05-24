@@ -20,8 +20,8 @@ def render_etl_pipeline():
     with tab1:
         st.markdown("### Data Ingestion")
         uploaded_file = st.file_uploader(
-            "Upload a file (CSV, Excel, JSON, Parquet)",
-            type=["csv", "xlsx", "xls", "json", "parquet"],
+            "Upload a file (CSV, Excel, JSON, Parquet, PDF)",
+            type=["csv", "xlsx", "xls", "json", "parquet", "pdf"],
             key="etl_upload",
         )
 
@@ -30,6 +30,7 @@ def render_etl_pipeline():
             with open(file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
+            is_pdf = uploaded_file.name.lower().endswith(".pdf")
             st.info(f"File uploaded: {uploaded_file.name} ({uploaded_file.size:,} bytes)")
 
             col1, col2 = st.columns(2)
@@ -39,28 +40,64 @@ def render_etl_pipeline():
                     value=sanitize_table_name(Path(uploaded_file.name).stem),
                 )
             with col2:
-                run_etl = st.checkbox("Run full ETL (clean + transform + features)", value=True)
+                if is_pdf:
+                    run_etl = False
+                    st.checkbox("Run full ETL", value=False, disabled=True,
+                                help="PDF documents are parsed into structured tables and text. ETL cleaning is applied automatically.")
+                else:
+                    run_etl = st.checkbox("Run full ETL (clean + transform + features)", value=True)
 
             if st.button("Ingest Data", type="primary", use_container_width=True):
                 with st.status("Running ingestion pipeline...", expanded=True) as status:
                     try:
-                        if run_etl:
-                            result = etl_service.run_full_etl(file_path=str(file_path), name=table_name)
-                        else:
+                        if is_pdf:
+                            from app.etl.pdf_parser import pdf_parser
+                            from app.etl.ingestion import DataIngestion
+
                             result = etl_service.ingest_file(str(file_path), table_name)
+                            metadata = result.get("metadata", result)
 
-                        if isinstance(result, dict):
-                            if result.get("status") == "failed":
-                                raise RuntimeError(result.get("error", "ETL pipeline failed"))
-                            st.json(result.get("metadata", result))
+                            st.write(f"**Pages:** {metadata.get('pages', 0)}")
+                            st.write(f"**Pages with text:** {metadata.get('pages_with_text', 0)}")
+                            st.write(f"**Tables extracted:** {metadata.get('tables_extracted', 0)}")
+                            st.write(f"**Sections extracted:** {metadata.get('sections_extracted', 0)}")
+                            st.write(f"**Financial figures found:** {metadata.get('figures_extracted', 0)}")
+                            if metadata.get("is_scanned"):
+                                st.write(f"**Scanned PDF:** Yes (OCR used on {metadata.get('ocr_pages_used', 0)} pages)")
+                            elif metadata.get("ocr_pages_used", 0) > 0:
+                                st.write(f"**OCR fallback used on:** {metadata.get('ocr_pages_used', 0)} pages")
 
-                        st.success(f"Ingestion complete!")
+                            ingested = metadata.get("ingested_tables", [])
+                            if ingested:
+                                st.markdown("#### Extracted Data")
+                                for tbl in ingested:
+                                    tbl_name = tbl.get("table_name", "")
+                                    tbl_type = tbl.get("type", "table")
+                                    rows = tbl.get("rows", 0)
+                                    with st.expander(f"{tbl_name} ({tbl_type}, {rows} rows)"):
+                                        try:
+                                            preview_df = warehouse.get_dataset(tbl_name)
+                                            st.dataframe(preview_df.head(20), use_container_width=True)
+                                        except Exception:
+                                            st.info("Preview not available")
+                        else:
+                            if run_etl:
+                                result = etl_service.run_full_etl(file_path=str(file_path), name=table_name)
+                            else:
+                                result = etl_service.ingest_file(str(file_path), table_name)
 
-                        if run_etl:
-                            final_table = result.get("final_table", sanitize_table_name(table_name))
-                            df = warehouse.get_dataset(final_table)
-                            st.dataframe(df.head(20), use_container_width=True)
-                            st.caption(f"Total rows: {len(df)}")
+                            if isinstance(result, dict):
+                                if result.get("status") == "failed":
+                                    raise RuntimeError(result.get("error", "ETL pipeline failed"))
+                                st.json(result.get("metadata", result))
+
+                            if run_etl:
+                                final_table = result.get("final_table", sanitize_table_name(table_name))
+                                df = warehouse.get_dataset(final_table)
+                                st.dataframe(df.head(20), use_container_width=True)
+                                st.caption(f"Total rows: {len(df)}")
+
+                        st.success("Ingestion complete!")
 
                     except Exception as e:
                         st.error(f"Ingestion failed: {e}")

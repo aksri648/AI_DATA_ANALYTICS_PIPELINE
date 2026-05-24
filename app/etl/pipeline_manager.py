@@ -1,4 +1,5 @@
 from typing import Any
+from pathlib import Path
 import pandas as pd
 
 from app.etl.ingestion import DataIngestion
@@ -8,7 +9,7 @@ from app.etl.validation import DataValidation
 from app.etl.profiling import DataProfiling
 from app.etl.feature_engineering import FeatureEngineering
 from app.db.warehouse import warehouse
-from app.utils.helpers import generate_id, timestamp_now
+from app.utils.helpers import generate_id, timestamp_now, sanitize_table_name
 from app.utils.logging import logger
 
 
@@ -22,8 +23,13 @@ class ETLPipelineManager:
     ) -> dict[str, Any]:
         step_id = generate_id()
         if file_path:
-            metadata = DataIngestion.ingest_file(file_path, name, sheet_name)
-            table_name = metadata["table_name"]
+            file_path_str = str(file_path)
+            if file_path_str.lower().endswith(".pdf"):
+                metadata = DataIngestion.ingest_pdf(file_path, name)
+                table_name = sanitize_table_name(name or Path(file_path).stem)
+            else:
+                metadata = DataIngestion.ingest_file(file_path, name, sheet_name)
+                table_name = metadata["table_name"]
         elif df is not None:
             table_name = name or "dataset"
             metadata = DataIngestion.ingest_df(df, table_name)

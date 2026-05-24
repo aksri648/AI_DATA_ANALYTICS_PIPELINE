@@ -76,6 +76,18 @@ def mcp_read_csv(file_path: str, table_name: str | None = None, **_: Any) -> dic
     return DataIngestion.ingest_file(file_path, table_name)
 
 
+@MCPTools.register("read_pdf", "Parse a PDF document and extract tables, text, sections, and figures into the warehouse", {
+    "type": "object",
+    "properties": {
+        "file_path": {"type": "string", "description": "Path to the PDF file"},
+        "table_name": {"type": "string", "description": "Base name for extracted tables"},
+    },
+    "required": ["file_path"],
+})
+def mcp_read_pdf(file_path: str, table_name: str | None = None) -> dict[str, Any]:
+    return DataIngestion.ingest_pdf(file_path, table_name)
+
+
 @MCPTools.register("query_sql", "Execute a read-only SQL query on the warehouse", {
     "type": "object",
     "properties": {
