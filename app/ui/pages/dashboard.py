@@ -5,6 +5,69 @@ from app.db.warehouse import warehouse
 from app.db.dashboard_store import dashboard_store
 
 
+def _categorize_dashboard_charts(charts: dict) -> dict[str, list[tuple[str, object]]]:
+    """Group dashboard charts into logical sections."""
+    sections: dict[str, list[tuple[str, object]]] = {
+        "KPI Gauges": [],
+        "Trends & Time Series": [],
+        "Distributions & Outliers": [],
+        "Category Breakdowns": [],
+        "Relationships & Correlations": [],
+        "Composition & Hierarchy": [],
+        "Data Quality": [],
+    }
+    for name, fig in charts.items():
+        if fig is None:
+            continue
+        if name.startswith("gauge"):
+            sections["KPI Gauges"].append((name, fig))
+        elif any(name.startswith(p) for p in ["line_", "rolling_", "cumulative_", "multi_line", "revenue_trend", "revenue_rolling", "revenue_cumulative"]):
+            sections["Trends & Time Series"].append((name, fig))
+        elif any(name.startswith(p) for p in ["hist_", "box_", "violin_", "overlaid"]):
+            sections["Distributions & Outliers"].append((name, fig))
+        elif any(name.startswith(p) for p in ["bar_", "sum_", "avg_", "grouped", "stacked_bar", "spend_", "salary_", "headcount", "sales_by_category"]):
+            sections["Category Breakdowns"].append((name, fig))
+        elif any(k in name for k in ["scatter", "bubble", "correlation", "heatmap"]):
+            sections["Relationships & Correlations"].append((name, fig))
+        elif any(k in name for k in ["donut", "pie", "treemap", "sunburst"]):
+            sections["Composition & Hierarchy"].append((name, fig))
+        elif "missing" in name:
+            sections["Data Quality"].append((name, fig))
+        else:
+            sections["Category Breakdowns"].append((name, fig))
+    return {k: v for k, v in sections.items() if v}
+
+
+def _render_chart_grid(charts_dict: dict, cols_per_row: int = 2):
+    """Render charts in a responsive grid."""
+    items = list(charts_dict.items())
+    for i in range(0, len(items), cols_per_row):
+        row_cols = st.columns(cols_per_row)
+        for j in range(cols_per_row):
+            idx = i + j
+            if idx < len(items):
+                name, fig = items[idx]
+                if fig:
+                    with row_cols[j]:
+                        st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_dashboard_sections(charts_dict: dict):
+    """Render charts organized by section with headers."""
+    sections = _categorize_dashboard_charts(charts_dict)
+    for section_name, chart_list in sections.items():
+        st.markdown(f"#### {section_name}")
+        for i in range(0, len(chart_list), 2):
+            row_cols = st.columns(2)
+            for j in range(2):
+                idx = i + j
+                if idx < len(chart_list):
+                    name, fig = chart_list[idx]
+                    if fig:
+                        with row_cols[j]:
+                            st.plotly_chart(fig, use_container_width=True)
+
+
 def _render_saved_dashboard(saved: dict):
     """Render a saved dashboard from its persisted HTML charts."""
     st.subheader(f"{saved['name']}")
@@ -14,9 +77,7 @@ def _render_saved_dashboard(saved: dict):
     if kpis:
         st.markdown("### Key Metrics")
         cols = st.columns(min(len(kpis), 4))
-        for i, kpi in enumerate(kpis):
-            if i >= 4:
-                break
+        for i, kpi in enumerate(kpis[:4]):
             delta = None
             if kpi.get("trend") == "up":
                 delta = "+"
@@ -30,17 +91,18 @@ def _render_saved_dashboard(saved: dict):
 
     charts_html = saved.get("charts_html", {})
     if charts_html:
-        st.markdown("### Charts")
-        chart_items = list(charts_html.items())
-        for i in range(0, len(chart_items), 2):
-            row_cols = st.columns(2)
-            for j in range(2):
-                idx = i + j
-                if idx < len(chart_items):
-                    name, html = chart_items[idx]
-                    if html:
-                        with row_cols[j]:
-                            st.components.v1.html(html, height=420, scrolling=True)
+        sections = _categorize_dashboard_charts(charts_html)
+        for section_name, chart_list in sections.items():
+            st.markdown(f"#### {section_name}")
+            for i in range(0, len(chart_list), 2):
+                row_cols = st.columns(2)
+                for j in range(2):
+                    idx = i + j
+                    if idx < len(chart_list):
+                        name, html = chart_list[idx]
+                        if html:
+                            with row_cols[j]:
+                                st.components.v1.html(html, height=420, scrolling=True)
 
 
 def render_dashboard():
@@ -77,9 +139,7 @@ def render_dashboard():
                         if kpis:
                             st.subheader("Key Metrics")
                             cols = st.columns(min(len(kpis), 4))
-                            for i, kpi in enumerate(kpis):
-                                if i >= 4:
-                                    break
+                            for i, kpi in enumerate(kpis[:4]):
                                 delta = None
                                 if kpi.get("trend") == "up":
                                     delta = "+"
@@ -93,16 +153,8 @@ def render_dashboard():
 
                         charts = dashboard.get("charts", {})
                         if charts:
-                            chart_items = list(charts.items())
-                            for i in range(0, len(chart_items), 2):
-                                row_cols = st.columns(2)
-                                for j in range(2):
-                                    idx = i + j
-                                    if idx < len(chart_items):
-                                        name, fig = chart_items[idx]
-                                        if fig:
-                                            with row_cols[j]:
-                                                st.plotly_chart(fig, use_container_width=True)
+                            st.subheader("Visualizations")
+                            _render_dashboard_sections(charts)
 
                         st.session_state["last_dashboard"] = {
                             "kpis": kpis,
@@ -110,7 +162,8 @@ def render_dashboard():
                             "dashboard_type": dashboard_type,
                             "dataset_name": selected,
                         }
-                        st.success("Dashboard generated successfully!")
+                        chart_count = len([v for v in charts.values() if v is not None])
+                        st.success(f"Dashboard generated with {chart_count} charts!")
 
                     except Exception as e:
                         st.error(f"Dashboard generation failed: {e}")
