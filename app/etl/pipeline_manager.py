@@ -123,7 +123,7 @@ class ETLPipelineManager:
             transformation = self.run_transformation(f"{table_name}_cleaned")
             steps.append(transformation)
 
-            target_table = f"{table_name}_transformed"
+            target_table = f"{table_name}_cleaned_transformed"
 
             if run_features:
                 fe = self.run_feature_engineering(target_table)

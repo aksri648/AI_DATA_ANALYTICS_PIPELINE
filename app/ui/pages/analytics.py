@@ -45,9 +45,11 @@ def render_analytics():
                         insight_text = result.get("message", "")
                     elif result.get("intent") == "sql":
                         if "error" in result:
-                            st.error(f"SQL Error: {result['error']}")
-                            st.code(result.get("sql", ""), language="sql")
-                            insight_text = f"SQL Error: {result['error']}"
+                            insight_text = (
+                                "**I could not run that SQL query.**\n\n"
+                                f"{result['error']}"
+                            )
+                            st.markdown(insight_text)
                         else:
                             st.markdown("**Query Results:**")
                             st.dataframe(result.get("result", []), use_container_width=True)
@@ -76,7 +78,7 @@ def render_analytics():
 
                     st.session_state.chat_history.append({
                         "role": "assistant",
-                        "content": insight_text[:500],
+                        "content": insight_text,
                         "chart": result.get("chart"),
                         "insights": result.get("insights", result.get("analysis", "")),
                     })

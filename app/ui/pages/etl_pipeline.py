@@ -8,6 +8,7 @@ from app.db.warehouse import warehouse
 from app.etl.pipeline_manager import etl_pipeline
 from app.etl.profiling import DataProfiling
 from app.config.settings import UPLOAD_DIR
+from app.utils.helpers import sanitize_table_name
 
 
 def render_etl_pipeline():
@@ -33,7 +34,10 @@ def render_etl_pipeline():
 
             col1, col2 = st.columns(2)
             with col1:
-                table_name = st.text_input("Table name", value=Path(uploaded_file.name).stem.lower().replace(" ", "_"))
+                table_name = st.text_input(
+                    "Table name",
+                    value=sanitize_table_name(Path(uploaded_file.name).stem),
+                )
             with col2:
                 run_etl = st.checkbox("Run full ETL (clean + transform + features)", value=True)
 
@@ -45,12 +49,15 @@ def render_etl_pipeline():
                         else:
                             result = etl_service.ingest_file(str(file_path), table_name)
 
-                        st.success(f"Ingestion complete!")
                         if isinstance(result, dict):
+                            if result.get("status") == "failed":
+                                raise RuntimeError(result.get("error", "ETL pipeline failed"))
                             st.json(result.get("metadata", result))
 
+                        st.success(f"Ingestion complete!")
+
                         if run_etl:
-                            final_table = result.get("final_table", table_name)
+                            final_table = result.get("final_table", sanitize_table_name(table_name))
                             df = warehouse.get_dataset(final_table)
                             st.dataframe(df.head(20), use_container_width=True)
                             st.caption(f"Total rows: {len(df)}")

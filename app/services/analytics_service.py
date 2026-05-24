@@ -1,4 +1,5 @@
 from typing import Any
+import re
 
 import pandas as pd
 
@@ -15,19 +16,31 @@ from app.utils.logging import logger
 class AnalyticsService:
     def detect_intent(self, question: str) -> str:
         q = question.lower()
-        if any(w in q for w in ["upload", "import", "load", "ingest", "read file", "open file"]):
-            return "ingestion"
-        if any(w in q for w in ["clean", "etl", "transform", "remove duplicate", "fix data"]):
-            return "etl"
-        if any(w in q for w in ["chart", "plot", "graph", "visualize", "dashboard", "show me"]):
-            return "visualization"
-        if any(w in q for w in ["insight", "trend", "pattern", "analyze", "why did", "what caused"]):
+        words = set(re.findall(r"\b[a-z_]+\b", q))
+        if any(p in q for p in ["summarize", "summarise", "conclusion", "key takeaway", "takeaways"]):
             return "insights"
-        if any(w in q for w in ["report", "summary", "executive"]):
+        if any(w in q for w in ["read file", "open file"]) or words & {"upload", "import", "load", "ingest"}:
+            return "ingestion"
+        if any(w in q for w in ["remove duplicate", "fix data"]) or words & {"clean", "etl", "transform"}:
+            return "etl"
+        if any(w in q for w in ["show me"]) or words & {"chart", "plot", "graph", "visualize", "dashboard"}:
+            return "visualization"
+        if any(w in q for w in ["why did", "what caused"]) or words & {"insight", "trend", "pattern", "analyze", "analyse"}:
+            return "insights"
+        if words & {"report", "summary", "executive"}:
             return "report"
-        if any(w in q for w in ["sql", "query", "select", "count", "sum", "average", "group by"]):
+        if any(w in q for w in ["group by"]) or words & {"sql", "query", "select", "count", "sum", "average"}:
             return "sql"
         return "analytics"
+
+    def extract_select_sql(self, text: str) -> str | None:
+        fenced = re.search(r"```sql\s*(.*?)```", text, flags=re.IGNORECASE | re.DOTALL)
+        candidate = fenced.group(1).strip() if fenced else text.strip()
+        match = re.search(r"\bselect\b[\s\S]*?(?:;|$)", candidate, flags=re.IGNORECASE)
+        if not match:
+            return None
+        sql = match.group(0).strip()
+        return sql if sql.lower().startswith("select") else None
 
     def process_question(self, question: str, table_name: str | None = None) -> dict[str, Any]:
         intent = self.detect_intent(question)
@@ -54,12 +67,14 @@ User question: {question}
 
 Generate a SQL query and explain the results."""
             sql_result = ollama_service.invoke(prompt)
+            sql = self.extract_select_sql(sql_result)
+            if not sql:
+                return {"intent": "analytics", "analysis": sql_result, "table_name": table_name}
             try:
-                from app.etl.ingestion import DataIngestion
-                result = warehouse.query(sql_result)
-                return {"intent": intent, "sql": sql_result, "result": result.to_dict(orient="records"), "table_name": table_name}
+                result = warehouse.query(sql)
+                return {"intent": intent, "sql": sql, "result": result.to_dict(orient="records"), "table_name": table_name}
             except Exception as e:
-                return {"intent": intent, "sql": sql_result, "error": str(e), "table_name": table_name}
+                return {"intent": intent, "sql": sql, "error": str(e), "table_name": table_name}
 
         if intent == "visualization":
             fig = chart_engine.auto_chart(df, question)

@@ -43,7 +43,13 @@ def validate_file_extension(filename: str, allowed: list[str]) -> bool:
 
 
 def sanitize_table_name(name: str) -> str:
-    return "".join(c if c.isalnum() or c == "_" else "_" for c in name).lower()
+    sanitized = "".join(c if c.isalnum() or c == "_" else "_" for c in name).lower()
+    sanitized = "_".join(part for part in sanitized.split("_") if part)
+    if not sanitized:
+        return "dataset"
+    if sanitized[0].isdigit():
+        return f"dataset_{sanitized}"
+    return sanitized
 
 
 def chunk_list(lst: list, chunk_size: int):

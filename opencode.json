@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "ai-analytics-etl": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "app.mcp.mcp_server"],
-      "description": "AI Analytics MCP server with database creation, ETL, query, chart, dashboard, and report tools"
-    }
-  }
-}

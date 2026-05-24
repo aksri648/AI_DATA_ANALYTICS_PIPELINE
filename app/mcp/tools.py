@@ -72,7 +72,7 @@ def mcp_read_excel(file_path: str, sheet_name: str | int = 0, table_name: str | 
     },
     "required": ["file_path"],
 })
-def mcp_read_csv(file_path: str, table_name: str | None = None) -> dict[str, Any]:
+def mcp_read_csv(file_path: str, table_name: str | None = None, **_: Any) -> dict[str, Any]:
     return DataIngestion.ingest_file(file_path, table_name)
 
 

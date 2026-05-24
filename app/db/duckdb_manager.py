@@ -9,6 +9,10 @@ from app.config.settings import DUCKDB_PATH
 from app.utils.logging import logger
 
 
+def quote_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
+
+
 class DuckDBManager:
     def __init__(self, db_path: str | None = None):
         self.db_path = db_path or DUCKDB_PATH
@@ -28,15 +32,16 @@ class DuckDBManager:
         return self.conn.execute(sql).fetchall()
 
     def register_table(self, df: pd.DataFrame, table_name: str, replace: bool = True):
+        quoted_table = quote_identifier(table_name)
         if replace:
             existing = self.conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
                 [table_name],
             ).fetchone()
             if existing:
-                self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+                self.conn.execute(f"DROP TABLE IF EXISTS {quoted_table}")
         self.conn.register("_temp_df", df)
-        self.conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _temp_df")
+        self.conn.execute(f"CREATE TABLE {quoted_table} AS SELECT * FROM _temp_df")
 
     def load_csv(self, file_path: str, table_name: str) -> pd.DataFrame:
         df = pd.read_csv(file_path)
@@ -57,14 +62,16 @@ class DuckDBManager:
         return [r[0] for r in result]
 
     def get_table_schema(self, table_name: str) -> list[dict[str, Any]]:
-        result = self.conn.execute(f"DESCRIBE {table_name}").fetchall()
+        result = self.conn.execute(f"DESCRIBE {quote_identifier(table_name)}").fetchall()
         return [
             {"name": r[0], "type": r[1], "nullable": r[2] == "YES"}
             for r in result
         ]
 
     def get_table_stats(self, table_name: str) -> dict[str, Any]:
-        row_count = self.conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+        row_count = self.conn.execute(
+            f"SELECT COUNT(*) FROM {quote_identifier(table_name)}"
+        ).fetchone()[0]
         col_count = len(self.get_table_schema(table_name))
         return {"row_count": row_count, "column_count": col_count}
 
@@ -77,7 +84,7 @@ class DuckDBManager:
 
     def drop_table(self, table_name: str):
         if self.table_exists(table_name):
-            self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+            self.conn.execute(f"DROP TABLE IF EXISTS {quote_identifier(table_name)}")
 
     def close(self):
         if self._conn:
