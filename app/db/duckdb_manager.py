@@ -21,7 +21,12 @@ class DuckDBManager:
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
         if self._conn is None:
-            Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+            db_dir = Path(self.db_path).parent
+            try:
+                db_dir.mkdir(parents=True, exist_ok=True)
+            except PermissionError:
+                self.db_path = str(Path("/tmp") / Path(self.db_path).name)
+                logger.warning(f"Disk not mounted, falling back to {self.db_path}")
             self._conn = duckdb.connect(self.db_path)
             self._conn.execute("SET enable_progress_bar=false;")
         return self._conn
