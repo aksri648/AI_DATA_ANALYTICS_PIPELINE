@@ -1,15 +1,25 @@
 import os
 import sys
 import math
+import json
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+
+class SafeJSONResponse(JSONResponse):
+    def render(self, content: Any) -> bytes:
+        return json.dumps(
+            content,
+            default=str,
+            allow_nan=False,
+        ).encode("utf-8")
 
 
 def sanitize_for_json(obj):
@@ -74,7 +84,7 @@ def get_memory_manager():
     return memory_manager
 
 
-app = FastAPI(title="AI Analytics API", version="1.0.0")
+app = FastAPI(title="AI Analytics API", version="1.0.0", default_response_class=SafeJSONResponse)
 
 app.add_middleware(
     CORSMiddleware,
