@@ -16,9 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 class SafeJSONResponse(JSONResponse):
     def render(self, content: Any) -> bytes:
         return json.dumps(
-            content,
+            sanitize_for_json(content),
             default=str,
-            allow_nan=False,
         ).encode("utf-8")
 
 
