@@ -11,8 +11,8 @@ from app.utils.logging import logger
 
 
 class OllamaService:
-    def __init__(self):
-        self.base_url = OLLAMA_BASE_URL
+    def __init__(self, base_url: str | None = None):
+        self.base_url = base_url or OLLAMA_BASE_URL
         self.model = OLLAMA_MODEL
         self.embedding_model = OLLAMA_EMBEDDING_MODEL
         self._llm = None
