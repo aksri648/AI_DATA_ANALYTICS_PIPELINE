@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 from pathlib import Path
 from typing import Any, Optional
 
@@ -9,6 +10,18 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+
+def sanitize_for_json(obj):
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [sanitize_for_json(v) for v in obj]
+    return obj
 
 
 def get_etl_service():
@@ -257,12 +270,12 @@ async def ingest_file(
             raise HTTPException(status_code=400, detail=result.get("error", "ETL failed"))
 
         final_table = result.get("final_table", table_name) if isinstance(result, dict) else table_name
-        return {
+        return sanitize_for_json({
             "status": "success",
             "table_name": final_table,
             "is_pdf": False,
             "result": result,
-        }
+        })
     except HTTPException:
         raise
     except Exception as e:
