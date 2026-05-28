@@ -1,5 +1,5 @@
 import streamlit as st
-from app.config.settings import OLLAMA_BASE_URL, OLLAMA_MODEL, DUCKDB_PATH
+from app.config.settings import OLLAMA_MODEL, DUCKDB_PATH
 from app.llm.ollama_service import ollama_service
 
 
@@ -10,7 +10,7 @@ def render_settings():
     with st.expander("Ollama Configuration", expanded=True):
         col1, col2 = st.columns(2)
         with col1:
-            st.text_input("Ollama Base URL", value=OLLAMA_BASE_URL, key="ollama_url", disabled=True)
+            st.text_input("Ollama Base URL", value=ollama_service.base_url, key="ollama_url", disabled=True)
         with col2:
             st.text_input("Active Model", value=ollama_service.model, key="ollama_model", disabled=True)
 

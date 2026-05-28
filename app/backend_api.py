@@ -129,7 +129,6 @@ async def get_settings():
 async def update_ollama_url(data: dict[str, str]):
     """Update the Ollama server URL."""
     import app.config.settings as settings_module
-    from app.llm.ollama_service import OllamaService
 
     url = data.get("url", "").strip()
     if not url:
@@ -138,9 +137,9 @@ async def update_ollama_url(data: dict[str, str]):
     # Update the settings module
     settings_module.OLLAMA_BASE_URL = url
 
-    # Recreate ollama service with new URL
-    from app.llm import ollama_service as ollama_module
-    ollama_module.ollama_service = OllamaService(base_url=url)
+    # Update ollama service URL in-place so all references stay valid
+    ollama = get_ollama_service()
+    ollama.update_url(url)
 
     return {"status": "success", "url": url}
 

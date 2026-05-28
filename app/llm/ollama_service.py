@@ -37,6 +37,11 @@ class OllamaService:
             )
         return self._embeddings
 
+    def update_url(self, url: str):
+        self.base_url = url
+        self._llm = None
+        self._embeddings = None
+
     def set_model(self, model_name: str):
         self.model = model_name
         self._llm = None
