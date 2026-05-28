@@ -21,6 +21,7 @@ class DuckDBManager:
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
         if self._conn is None:
+            Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
             self._conn = duckdb.connect(self.db_path)
             self._conn.execute("SET enable_progress_bar=false;")
         return self._conn
