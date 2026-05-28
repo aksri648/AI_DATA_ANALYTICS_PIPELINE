@@ -10,7 +10,7 @@ from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from app.config.settings import OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_EMBEDDING_MODEL, BASE_DIR
 from app.utils.logging import logger
 
-PERSIST_FILE = BASE_DIR / "ollama_config.json"
+PERSIST_FILE = Path("/tmp") / "ollama_config.json"
 
 
 def load_persisted_url() -> str | None:
