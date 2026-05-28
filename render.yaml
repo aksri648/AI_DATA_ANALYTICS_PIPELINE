@@ -16,7 +16,7 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: OLLAMA_MODEL
-        value: qwen2.5:14b
+        value: deepseek-r1:8b
       - key: DUCKDB_PATH
         value: /var/data/analytics.duckdb
       - key: LOG_LEVEL
